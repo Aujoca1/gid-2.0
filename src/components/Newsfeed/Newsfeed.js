@@ -8,13 +8,51 @@ const Newsfeed = ({ posts = [], onAddReview }) => {
   const [currentPost, setCurrentPost] = useState(null);
 
   const handleOpenGallery = (images, post) => {
-    setActiveGalleryPosts(images);
-    setCurrentPost(post);
+    if (images && images.length > 0) {
+      setActiveGalleryPosts(images);
+      setCurrentPost(post);
+    }
   };
 
   const handleCloseGallery = () => {
     setActiveGalleryPosts(null);
     setCurrentPost(null);
+  };
+
+  const renderImages = (post) => {
+    const images = post.images || [];
+    const imageCount = images.length;
+    const showOverlay = imageCount > 4;
+    const imagesToShow = showOverlay ? images.slice(0, 4) : images;
+    const remainingCount = imageCount - 4;
+
+    if (imageCount === 0) return null;
+
+    return (
+      <div className="newsfeed-images" data-count={imageCount}>
+        {imagesToShow.map((image, index) => (
+          <div
+            key={`${post.id}-${index}`}
+            className={`newsfeed-image ${index === 0 ? 'first-image' : ''}`}
+            onClick={() => handleOpenGallery(images, post)}
+          >
+            <img
+              src={image}
+              alt={`Пост ${post.id}, фото ${index + 1}`}
+              className="newsfeed-image-content"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+            {showOverlay && index === 3 && (
+              <div className="newsfeed-image-overlay">
+                +{remainingCount}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -23,50 +61,53 @@ const Newsfeed = ({ posts = [], onAddReview }) => {
         <div key={post.id} className="newsfeed-item">
           <div className="newsfeed-header">
             <img 
-              src={post.author.avatar || "default-avatar.png"} 
-              alt="Аватар" 
+              src={post.author?.avatar || "/default-avatar.png"} 
+              alt="Аватар автора" 
               className="newsfeed-avatar" 
+              onError={(e) => {
+                e.target.src = "/default-avatar.png";
+              }}
             />
-            <div>
-              <h3 className="newsfeed-author">{post.author.name || "Аноним"}</h3>
-              <p className="newsfeed-date">{post.date || "Неизвестная дата"}</p>
+            <div className="newsfeed-header-info">
+              <h3 className="newsfeed-author">
+                {post.author?.name || "Анонимный пользователь"}
+              </h3>
+              <p className="newsfeed-date">
+                {post.date || "Дата не указана"}
+              </p>
             </div>
           </div>
 
           <div className="post-content-wrapper">
-            <h3 className="newsfeed-title">{post.title || "Без заголовка"}</h3>
-            <p className="newsfeed-description">{post.description || "Нет описания"}</p>
+            {post.title && (
+              <h3 className="newsfeed-title">{post.title}</h3>
+            )}
+            {post.description && (
+              <p className="newsfeed-description">{post.description}</p>
+            )}
 
-            <div className="newsfeed-images">
-              {post.images?.slice(0, 4).map((image, index) => (
-                <img 
-                  key={index} 
-                  src={image} 
-                  alt={`Фото ${index + 1}`} 
-                  className="newsfeed-image"
-                  onClick={() => handleOpenGallery(post.images || [], post)}
-                />
-              ))}
-              {(post.images?.length || 0) > 4 && (
-                <div 
-                  className="newsfeed-image-overlay" 
-                  onClick={() => handleOpenGallery(post.images || [], post)}
-                >
-                  +{(post.images?.length || 0) - 4}
-                </div>
-              )}
-            </div>
+            {renderImages(post)}
 
             <div className="reviews-preview">
               <div className="rating-summary">
-                ⭐ {post.rating?.toFixed(1) || '0.0'} 
-                <span>({post.reviews?.length || 0} отзывов)</span>
+                <span className="rating-stars">⭐</span>
+                <span className="rating-value">
+                  {post.rating?.toFixed(1) || '0.0'}
+                </span>
+                <span className="reviews-count">
+                  ({post.reviews?.length || 0} отзывов)
+                </span>
               </div>
+
               {post.reviews?.length > 0 ? (
-                post.reviews.slice(0, 2).map((review, index) => (
-                  <div key={index} className="review-preview">
-                    <div className="review-author">{review.author}</div>
-                    <div className="review-text">{review.text}</div>
+                post.reviews.slice(0, 2).map((review, i) => (
+                  <div key={`review-${post.id}-${i}`} className="review-preview">
+                    <div className="review-author">
+                      {review.author || "Аноним"}
+                    </div>
+                    <div className="review-text">
+                      {review.text || "Без текста"}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -76,15 +117,21 @@ const Newsfeed = ({ posts = [], onAddReview }) => {
           </div>
 
           <div className="newsfeed-footer">
-            <button className="newsfeed-review-button">Оставить отзыв</button>
+            <button
+              type="button"
+              className="newsfeed-review-button"
+              onClick={() => handleOpenGallery(post.images || [], post)}
+            >
+              Оставить отзыв
+            </button>
           </div>
         </div>
       ))}
 
       {activeGalleryPosts && (
-        <GalleryPosts 
-          images={activeGalleryPosts} 
-          onClose={handleCloseGallery} 
+        <GalleryPosts
+          images={activeGalleryPosts}
+          onClose={handleCloseGallery}
           post={currentPost}
           onAddReview={onAddReview}
         />
@@ -101,7 +148,15 @@ Newsfeed.propTypes = {
         name: PropTypes.string,
         avatar: PropTypes.string,
       }),
-      images: PropTypes.arrayOf(PropTypes.string),
+      images: PropTypes.arrayOf(
+        PropTypes.oneOfType([
+          PropTypes.string,
+          PropTypes.shape({
+            url: PropTypes.string,
+            alt: PropTypes.string,
+          })
+        ])
+      ),
       title: PropTypes.string,
       description: PropTypes.string,
       rating: PropTypes.number,
@@ -117,6 +172,10 @@ Newsfeed.propTypes = {
     })
   ).isRequired,
   onAddReview: PropTypes.func.isRequired,
+};
+
+Newsfeed.defaultProps = {
+  posts: [],
 };
 
 export default Newsfeed;
